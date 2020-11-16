@@ -14,6 +14,7 @@ APP_NAME = 'squire'
 
 // GIT Variables
 GIT_URL = 'https://gitlab.gs.mil/DGS1SDT/squire.git'
+GIT_BRANCH = env.BRANCH_NAME
 GIT_CREDENTIALS_ID = 'c7f06540-c586-4b51-8d5a-cb1b91510aed'
 
 // SONAR Variables
@@ -84,6 +85,10 @@ node ('Standard') {
   env.PATH="${env.NODEJS_HOME}/bin:${env.PATH}"
 
   stage ('Git Checkout') {
-      git url: "${GIT_URL}", branch: env.BRANCH_NAME, credentialsId: "${GIT_CREDENTIALS_ID}", poll: true
+    git url: "${GIT_URL}", branch: "${GIT_BRANCH}", credentialsId: "${GIT_CREDENTIALS_ID}", poll: true
+  }
+
+  stage ('Test & Build') {
+    sh '../tests.sh'
   }
 }
