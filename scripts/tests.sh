@@ -36,6 +36,7 @@ function unitTests {
     mvn -q -Dspring.profiles.active=test test | grep -v "INFO" &
     showSpinner "$!"
   fi
+  echo -e "\033[32mTests Pass!\033[0m"
   popd
 
   # showBanner "Frontend"

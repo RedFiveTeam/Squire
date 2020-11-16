@@ -8,6 +8,7 @@ class SquireApplicationTests {
 
     @Test
     fun contextLoads() {
+    // This test just makes sure that the application will run, it doesn't test anything else.
     }
 
 }
