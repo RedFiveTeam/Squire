@@ -25,6 +25,10 @@ SONAR_TOOL = 'SonarQube Runner 3.0'
 SONAR_XMX = '512m'
 SONAR_HOST = 'https://sonar.gs.mil'
 
+// THREADFIX Variables
+THREADFIX_APP_ID = '600'
+THREADFIX_CREDS = 'THREADFIXAPIKEY_squire'
+
 // Deploy variables
 DEPLOY_ORG = 'DGS1SDT'
 DEPLOY_API_DEV = 'api.system.dev.east.paas.nga.mil'
@@ -89,6 +93,35 @@ node ('Standard') {
   }
 
   stage ('Test & Build') {
-    sh '../tests.sh'
+    sh './scripts/tests.sh'
+    sh 'mvn -q -Dmaven.test.skip=true -DskipTests clean package'
   }
+
+  stage('SonarQube') {
+    writeSonarProps(SONAR_APP_VERSION)
+    def SCANNER_HOME = tool("${SONAR_TOOL}")
+    
+    fileExists 'sonar-project.properties'
+
+    withEnv(["SONAR_SCANNER_OPTS=-Xmx${SONAR_XMX}"]) {
+      withCredentials([[$class: 'StringBinding', credentialsId: "${SONAR_CREDS}", variable: 'SONAR_LOGIN']]) {
+        sh "${SCANNER_HOME}/bin/sonar-scanner -Dsonar.host.url=${SONAR_HOST} -Dsonar.login=${SONAR_LOGIN}"
+      }
+    }
+  }
+
+  stage  ('Fortify') {
+    sh '/opt/hp_fortify_sca/bin/sourceanalyzer -64 -verbose -Xms2G -Xmx10G -b ${BUILD_NUMBER} -clean'
+    sh '/opt/hp_fortify_sca/bin/sourceanalyzer -64 -verbose -Xms2G -Xmx10G -b ${BUILD_NUMBER} "**/*.kt"'
+    sh '/opt/hp_fortify_sca/bin/sourceanalyzer -64 -verbose -Xms2G -Xmx10G -b ${BUILD_NUMBER} -scan -f fortifyResults-${BUILD_NUMBER}.fpr'
+  }
+
+  stage  ('Threadfix') {
+    withCredentials([string(credentialsId: "${THREADFIX_CREDS}", variable: 'THREADFIX_VARIABLE')]) {
+      sh "/bin/curl -v --insecure -H 'Accept: application/json' -X POST --form file=@fortifyResults-${BUILD_NUMBER}.fpr\
+          https://threadfix.gs.mil/rest/applications/${THREADFIX_APP_ID}/upload?apiKey=${THREADFIX_VARIABLE}"
+    }
+  }
+
+
 }
