@@ -1,0 +1,89 @@
+properties(
+  [
+    buildDiscarder(
+      logRotator(
+        numToKeepStr: env.BRANCH_NAME ==~ /master|main|develop|dev/ ? '10' : '2'
+      )
+    ),
+    disableConcurrentBuilds()
+  ]
+)
+
+// Global Variables
+APP_NAME = 'squire'
+
+// GIT Variables
+GIT_URL = 'https://gitlab.gs.mil/DGS1SDT/squire.git'
+GIT_CREDENTIALS_ID = 'c7f06540-c586-4b51-8d5a-cb1b91510aed'
+
+// SONAR Variables
+SONAR_APP_ORG = 'dgs1sdt'
+SONAR_APP_VERSION = '0.0.1'
+SONAR_CREDS = 'sonar-prod-publish-token'
+SONAR_TOOL = 'SonarQube Runner 3.0'
+SONAR_XMX = '512m'
+SONAR_HOST = 'https://sonar.gs.mil'
+
+// Deploy variables
+DEPLOY_ORG = 'DGS1SDT'
+DEPLOY_API_DEV = 'api.system.dev.east.paas.nga.mil'
+DEPLOY_API_OPS = 'api.system.east.paas.nga.mil'
+DEPLOY_CREDS_DEV = 'dgs1sdt_cloud_foundry_dev_credential'
+DEPLOY_CREDS_OPS = 'dgs1sdt_cloud_foundry_ops_credential'
+
+def writeSonarProps(SONAR_APP_VERSION) {
+  writeFile file: 'sonar-project.properties', text:"""
+    sonar.projectKey=${SONAR_APP_ORG}:${APP_NAME}
+    sonar.projectName=${APP_NAME}
+    sonar.projectVersion=${SONAR_APP_VERSION}
+    sonar.sources=.
+    sonar.exclusions=public/**/*,docs/swagger.json,node_modules/**/*,coverage/**/*,test/**/*,environment/cloudfoundry/test/**/*,environment/local/test/**/*,functionalTests/**/*\\
+    sonar.test.exclusions=test/**/*,environment/cloudfoundry/test/**/*,environment/local/test/**/*,functionalTests/**/*\\
+    sonar.sourceEncoding=UTF-8
+    sonar.javascript.lcov.reportPath=coverage/lcov/dashboard.lcov
+    sonar.links.ci=${JOB_URL}
+    sonar.links.homepage=https://redmine.gs.mil/projects/dgs1sdt_${APP_NAME}
+    sonar.links.scm=https://gitlab.gs.mil/DGS1SDT/${APP_NAME}
+    sonar.links.scm_dev=https://gitlab.gs.mil/DGS1SDT/${APP_NAME}
+  """
+}
+
+def withNode(Closure body) {
+  def customConfig = "${WORKSPACE}/npm_userconfig"
+  def nodeHome = "${tool 'NodeJS_LTS'}"
+  withEnv(["PATH+NODE=${nodeHome}/bin", "NPM_CONFIG_CACHE=${WORKSPACE}/npm_cache"]) {
+    def defaultConfig = sh (
+    script: 'npm config get userconfig | tail -1',
+    returnStdout: true).trim()
+    sh "cp '${defaultConfig}' '${customConfig}'"
+  }
+
+  // custom cache
+  def customCache = "${WORKSPACE}/npm_cache"
+  sh "mkdir -p '${customCache}'"
+
+  withEnv(["PATH+NODE=${nodeHome}/bin", "NPM_CONFIG_CACHE=${customCache}", "NPM_CONFIG_USERCONFIG=${customConfig}"]) {
+    wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'XTerm']) {
+      // fix a couple configuration items that aren’t set correctly in the default configuration
+      sh 'npm config set strict-ssl true'
+      sh 'npm config set cafile /etc/pki/tls/cert.pem'
+
+      // configure git to change ssh URLs to github.com to https URLs on the fly to get around blocked github.com ssh access
+      sh 'git config --global --unset-all url."https://github.com/".insteadOf || true'
+      sh 'git config --global url."https://github.com/".insteadOf git://github.com/'
+      sh 'git config --global --add url."https://github.com/".insteadOf git@github.com:'
+      sh 'git config --global --add url."https://github.com/".insteadOf ssh://git@github.com/'
+      body()
+    }
+  }
+}
+
+
+node ('Standard') {
+  env.NODEJS_HOME = "${tool 'NodeJS_LTS'}"
+  env.PATH="${env.NODEJS_HOME}/bin:${env.PATH}"
+
+  stage ('Git Checkout') {
+      git url: "${GIT_URL}", branch: env.BRANCH_NAME, credentialsId: "${GIT_CREDENTIALS_ID}", poll: true
+  }
+}
