@@ -123,5 +123,31 @@ node ('Standard') {
     }
   }
 
-
+  stage ('Deploy NGA') {
+    if (env.BRANCH_NAME == 'main') {
+      withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: "${DEPLOY_CREDS_OPS}", passwordVariable: 'PCFPass', usernameVariable: 'PCFUser']]) {
+        withEnv(["CF_HOME=${pwd()}"]) {
+          echo 'Deploying to NGA dev environment -> Squire_ops'
+          sh "cf login -a ${DEPLOY_API_OPS} -u $PCFUser -p $PCFPass -o ${DEPLOY_ORG} -s squire_prod"
+          sh 'cf push -f ./scripts/ci/manifest.yml'
+        }
+      } 
+    } else if (env.BRANCH_NAME == 'develop') {
+      withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: "${DEPLOY_CREDS_DEV}", passwordVariable: 'PCFPass', usernameVariable: 'PCFUser']]) {
+        withEnv(["CF_HOME=${pwd()}"]) {
+          echo 'Deploying to NGA dev environment -> squire_dev'
+          sh "cf login -a ${DEPLOY_API_DEV} -u $PCFUser -p $PCFPass -o ${DEPLOY_ORG} -s squire_dev"
+          sh 'cf push -f ./scripts/ci/manifest.yml'
+        }
+      } 
+    } else {
+      withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: "${DEPLOY_CREDS_DEV}", passwordVariable: 'PCFPass', usernameVariable: 'PCFUser']]) {
+        withEnv(["CF_HOME=${pwd()}"]) {
+          echo 'Deploying to NGA dev environment -> squire_test'
+          sh "cf login -a ${DEPLOY_API_DEV} -u $PCFUser -p $PCFPass -o ${DEPLOY_ORG} -s squire_test"
+          sh 'cf push -f ./scripts/ci/manifest.yml' 
+        }
+      } 
+    }
+  }
 }
