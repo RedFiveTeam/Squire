@@ -7,5 +7,5 @@ import org.springframework.boot.runApplication
 class SquireApplication
 
 fun main(args: Array<String>) {
-    runApplication<SquireApplication>(*args)
+  runApplication<SquireApplication>(*args)
 }
