@@ -1,1 +1,32 @@
+spring:
+  application:
+    name: squire
 
+graphql:
+  servlet:
+    mapping: /graphql
+    enabled: true
+    corsEnabled: true
+#     # cors: 
+#       # allowed-origins: https://squire.gs.mil
+#     # to enable custom error handlers
+#     # exception-handlers-enabled: true
+#     # conextSetting: PER_REQUEST_WITH_INSTRUMENTATION
+
+graphiql:
+  mapping: /graphiql
+  endpoint:
+    graphql: /graphql
+    subscriptions: /subscriptions
+  subscriptions:
+    timeout: 30
+    reconnect: false
+  static:
+    basePath: /
+  pageTitle: Squire - GraphiQL
+  cdn:
+    enabled: false
+    version: 0.13.0
+  props:
+    variables:
+      editorTheme: "nord"

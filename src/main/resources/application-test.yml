@@ -5,3 +5,26 @@ spring:
     level:
       root: OFF
       org.springframework: OFF
+
+graphql:
+  servlet:
+    mapping: /graphql
+    enabled: true
+
+graphiql:
+  mapping: /graphiql
+  endpoint:
+    graphql: /graphql
+    subscriptions: /subscriptions
+  subscriptions:
+    timeout: 30
+    reconnect: false
+  static:
+    basePath: /
+  pageTitle: Squire - GraphiQL (TEST)
+  cdn:
+    enabled: false
+    version: 0.13.0
+  props:
+    variables:
+      editorTheme: "nord"
