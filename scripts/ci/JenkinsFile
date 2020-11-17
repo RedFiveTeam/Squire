@@ -129,7 +129,7 @@ node ('Standard') {
         withEnv(["CF_HOME=${pwd()}"]) {
           echo 'Deploying to NGA dev environment -> Squire_ops'
           sh "cf login -a ${DEPLOY_API_OPS} -u $PCFUser -p $PCFPass -o ${DEPLOY_ORG} -s squire_prod"
-          sh 'cf push -f ./scripts/ci/manifest.yml -r squire.gs.mil'
+          sh 'cf push -f ./scripts/ci/manifest.yml --hostname squire -d gs.mil'
         }
       } 
     } else if (env.BRANCH_NAME == 'develop') {
