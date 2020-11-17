@@ -1,1 +1,51 @@
+spring:
+  application:
+    name: squire
 
+graphql:
+  servlet:
+    mapping: /graphql
+    enabled: true
+    corsEnabled: true
+
+graphiql:
+  mapping: /graphiql
+  endpoint:
+    graphql: /graphql
+    subscriptions: /subscriptions
+  subscriptions:
+    timeout: 30
+    reconnect: false
+  static:
+    basePath: /
+  pageTitle: Squire - GraphiQL
+  cdn:
+    enabled: false
+    version: 0.13.0
+  props:
+    variables:
+      editorTheme: "nord"
+
+altair:
+  mapping: /altair
+  endpoint:
+    graphql: /graphql
+    # subscriptions: /subscriptions
+  # subscriptions:
+    # timeout: 30
+    # reconnect: false
+  static:
+    basePath: /
+  enabled: true
+  pageTitle: Squire - Altair
+  cdn:
+    enabled: false
+    version: 2.1.7
+
+graphql.playground:
+    mapping: /playground
+    endpoint: /graphql
+    subscriptionEndpoint: /subscriptions
+    staticPath.base: my-playground-resources-folder
+    enabled: true
+    pageTitle: Squire - GraphQL Playground

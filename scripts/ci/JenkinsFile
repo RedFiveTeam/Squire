@@ -1,0 +1,153 @@
+properties(
+  [
+    buildDiscarder(
+      logRotator(
+        numToKeepStr: env.BRANCH_NAME ==~ /master|main|develop|dev/ ? '10' : '2'
+      )
+    ),
+    disableConcurrentBuilds()
+  ]
+)
+
+// Global Variables
+APP_NAME = 'squire'
+
+// GIT Variables
+GIT_URL = 'https://gitlab.gs.mil/DGS1SDT/squire.git'
+GIT_BRANCH = env.BRANCH_NAME
+GIT_CREDENTIALS_ID = 'c7f06540-c586-4b51-8d5a-cb1b91510aed'
+
+// SONAR Variables
+SONAR_APP_ORG = 'dgs1sdt'
+SONAR_APP_VERSION = '0.0.1'
+SONAR_CREDS = 'sonar-prod-publish-token'
+SONAR_TOOL = 'SonarQube Runner 3.0'
+SONAR_XMX = '512m'
+SONAR_HOST = 'https://sonar.gs.mil'
+
+// THREADFIX Variables
+THREADFIX_APP_ID = '600'
+THREADFIX_CREDS = 'THREADFIXAPIKEY_squire'
+
+// Deploy variables
+DEPLOY_ORG = 'DGS1SDT'
+DEPLOY_API_DEV = 'api.system.dev.east.paas.nga.mil'
+DEPLOY_API_OPS = 'api.system.east.paas.nga.mil'
+DEPLOY_CREDS_DEV = 'dgs1sdt_cloud_foundry_dev_credential'
+DEPLOY_CREDS_OPS = 'dgs1sdt_cloud_foundry_ops_credential'
+
+def writeSonarProps(SONAR_APP_VERSION) {
+  writeFile file: 'sonar-project.properties', text:"""
+    sonar.projectKey=${SONAR_APP_ORG}:${APP_NAME}
+    sonar.projectName=${APP_NAME}
+    sonar.projectVersion=${SONAR_APP_VERSION}
+    sonar.sources=.
+    sonar.exclusions=public/**/*,docs/swagger.json,node_modules/**/*,coverage/**/*,test/**/*,environment/cloudfoundry/test/**/*,environment/local/test/**/*,functionalTests/**/*\\
+    sonar.test.exclusions=test/**/*,environment/cloudfoundry/test/**/*,environment/local/test/**/*,functionalTests/**/*\\
+    sonar.sourceEncoding=UTF-8
+    sonar.javascript.lcov.reportPath=coverage/lcov/dashboard.lcov
+    sonar.links.ci=${JOB_URL}
+    sonar.links.homepage=https://redmine.gs.mil/projects/dgs1sdt_${APP_NAME}
+    sonar.links.scm=https://gitlab.gs.mil/DGS1SDT/${APP_NAME}
+    sonar.links.scm_dev=https://gitlab.gs.mil/DGS1SDT/${APP_NAME}
+  """
+}
+
+def withNode(Closure body) {
+  def customConfig = "${WORKSPACE}/npm_userconfig"
+  def nodeHome = "${tool 'NodeJS_LTS'}"
+  withEnv(["PATH+NODE=${nodeHome}/bin", "NPM_CONFIG_CACHE=${WORKSPACE}/npm_cache"]) {
+    def defaultConfig = sh (
+    script: 'npm config get userconfig | tail -1',
+    returnStdout: true).trim()
+    sh "cp '${defaultConfig}' '${customConfig}'"
+  }
+
+  // custom cache
+  def customCache = "${WORKSPACE}/npm_cache"
+  sh "mkdir -p '${customCache}'"
+
+  withEnv(["PATH+NODE=${nodeHome}/bin", "NPM_CONFIG_CACHE=${customCache}", "NPM_CONFIG_USERCONFIG=${customConfig}"]) {
+    wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'XTerm']) {
+      // fix a couple configuration items that aren’t set correctly in the default configuration
+      sh 'npm config set strict-ssl true'
+      sh 'npm config set cafile /etc/pki/tls/cert.pem'
+
+      // configure git to change ssh URLs to github.com to https URLs on the fly to get around blocked github.com ssh access
+      sh 'git config --global --unset-all url."https://github.com/".insteadOf || true'
+      sh 'git config --global url."https://github.com/".insteadOf git://github.com/'
+      sh 'git config --global --add url."https://github.com/".insteadOf git@github.com:'
+      sh 'git config --global --add url."https://github.com/".insteadOf ssh://git@github.com/'
+      body()
+    }
+  }
+}
+
+
+node ('Standard') {
+  env.NODEJS_HOME = "${tool 'NodeJS_LTS'}"
+  env.PATH="${env.NODEJS_HOME}/bin:${env.PATH}"
+
+  stage ('Git Checkout') {
+    git url: "${GIT_URL}", branch: "${GIT_BRANCH}", credentialsId: "${GIT_CREDENTIALS_ID}", poll: true
+  }
+
+  stage ('Test & Build') {
+    sh './scripts/tests.sh'
+    sh 'mvn -q -Dmaven.test.skip=true -DskipTests clean package'
+  }
+
+  stage('SonarQube') {
+    writeSonarProps(SONAR_APP_VERSION)
+    def SCANNER_HOME = tool("${SONAR_TOOL}")
+    
+    fileExists 'sonar-project.properties'
+
+    withEnv(["SONAR_SCANNER_OPTS=-Xmx${SONAR_XMX}"]) {
+      withCredentials([[$class: 'StringBinding', credentialsId: "${SONAR_CREDS}", variable: 'SONAR_LOGIN']]) {
+        sh "${SCANNER_HOME}/bin/sonar-scanner -Dsonar.host.url=${SONAR_HOST} -Dsonar.login=${SONAR_LOGIN}"
+      }
+    }
+  }
+
+  stage  ('Fortify') {
+    sh '/opt/hp_fortify_sca/bin/sourceanalyzer -64 -verbose -Xms2G -Xmx10G -b ${BUILD_NUMBER} -clean'
+    sh '/opt/hp_fortify_sca/bin/sourceanalyzer -64 -verbose -Xms2G -Xmx10G -b ${BUILD_NUMBER} "**/*.kt"'
+    sh '/opt/hp_fortify_sca/bin/sourceanalyzer -64 -verbose -Xms2G -Xmx10G -b ${BUILD_NUMBER} -scan -f fortifyResults-${BUILD_NUMBER}.fpr'
+  }
+
+  stage  ('Threadfix') {
+    withCredentials([string(credentialsId: "${THREADFIX_CREDS}", variable: 'THREADFIX_VARIABLE')]) {
+      sh "/bin/curl -v --insecure -H 'Accept: application/json' -X POST --form file=@fortifyResults-${BUILD_NUMBER}.fpr\
+          https://threadfix.gs.mil/rest/applications/${THREADFIX_APP_ID}/upload?apiKey=${THREADFIX_VARIABLE}"
+    }
+  }
+
+  stage ('Deploy NGA') {
+    if (env.BRANCH_NAME == 'main') {
+      withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: "${DEPLOY_CREDS_OPS}", passwordVariable: 'PCFPass', usernameVariable: 'PCFUser']]) {
+        withEnv(["CF_HOME=${pwd()}"]) {
+          echo 'Deploying to NGA dev environment -> Squire_ops'
+          sh "cf login -a ${DEPLOY_API_OPS} -u $PCFUser -p $PCFPass -o ${DEPLOY_ORG} -s squire_prod"
+          sh 'cf push -f ./scripts/ci/manifest.yml'
+        }
+      } 
+    } else if (env.BRANCH_NAME == 'develop') {
+      withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: "${DEPLOY_CREDS_DEV}", passwordVariable: 'PCFPass', usernameVariable: 'PCFUser']]) {
+        withEnv(["CF_HOME=${pwd()}"]) {
+          echo 'Deploying to NGA dev environment -> squire_dev'
+          sh "cf login -a ${DEPLOY_API_DEV} -u $PCFUser -p $PCFPass -o ${DEPLOY_ORG} -s squire_dev"
+          sh 'cf push -f ./scripts/ci/manifest.yml'
+        }
+      } 
+    } else {
+      withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: "${DEPLOY_CREDS_DEV}", passwordVariable: 'PCFPass', usernameVariable: 'PCFUser']]) {
+        withEnv(["CF_HOME=${pwd()}"]) {
+          echo 'Deploying to NGA dev environment -> squire_test'
+          sh "cf login -a ${DEPLOY_API_DEV} -u $PCFUser -p $PCFPass -o ${DEPLOY_ORG} -s squire_test"
+          sh 'cf push -f ./scripts/ci/manifest.yml' 
+        }
+      } 
+    }
+  }
+}
