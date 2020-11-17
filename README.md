@@ -96,4 +96,4 @@ The app will push at the end of its pipeline cycle (in Jenkins via NGA).  Jenkin
 
 - [Squire (production)](https://squire.gs.mil)
 - [Squire (acceptance)](https://squire.dev.gs.mil)
-- [Squire (testing)](https://squire-test.dev.gs.mil)
+- [Squire (testing)](https://squire.test.gs.mil)
