@@ -7,11 +7,6 @@ graphql:
     mapping: /graphql
     enabled: true
     corsEnabled: true
-#     # cors: 
-#       # allowed-origins: https://squire.gs.mil
-#     # to enable custom error handlers
-#     # exception-handlers-enabled: true
-#     # conextSetting: PER_REQUEST_WITH_INSTRUMENTATION
 
 graphiql:
   mapping: /graphiql
@@ -30,3 +25,25 @@ graphiql:
   props:
     variables:
       editorTheme: "nord"
+
+altair:
+  mapping: /altair
+  endpoint:
+    graphql: /graphql
+    subscriptions: /subscriptions
+  subscriptions:
+    timeout: 30
+    reconnect: false
+  static:
+    basePath: /
+  pageTitle: Squire - Altair
+  cdn:
+    enabled: false
+
+graphql.playground:
+    mapping: /playground
+    endpoint: /graphql
+    subscriptionEndpoint: /subscriptions
+    staticPath.base: my-playground-resources-folder
+    enabled: true
+    pageTitle: Squire - GraphQL Playground
