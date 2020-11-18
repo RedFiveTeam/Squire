@@ -1,0 +1,14 @@
+---
+applications:
+  - name: squire
+    buildpacks:
+      - java_buildpack_offline
+    memory: 1GB
+    stack: cflinuxfs3
+    instances: 1
+    path: ../../target/squire-0.0.1-SNAPSHOT.jar
+    env:
+      SSO_IDENTITY_PROVIDERS: geoaxisbasic
+      SSO_REDIRECT_URIS: https://squire.east.paas.nga.mil
+    services:
+    - squire-sso

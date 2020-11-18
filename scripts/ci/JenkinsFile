@@ -9,32 +9,41 @@ properties(
   ]
 )
 
+// -----------------------------------------------------
+//            Project Specific Variables
+// -----------------------------------------------------
+
 // Global Variables
-APP_NAME = 'squire'
+APP_NAME = 'squire'             //  The App name
 
 // GIT Variables
-GIT_URL = 'https://gitlab.gs.mil/DGS1SDT/squire.git'
-GIT_BRANCH = env.BRANCH_NAME
-GIT_CREDENTIALS_ID = 'c7f06540-c586-4b51-8d5a-cb1b91510aed'
+GIT_URL = 'https://gitlab.gs.mil/DGS1SDT/squire.git'          //  Address of Git repo to pull
+GIT_BRANCH = env.BRANCH_NAME                                  //  Branch name (env.BRANCH_NAME is available instead, this just uses that)
+GIT_CREDENTIALS_ID = 'c7f06540-c586-4b51-8d5a-cb1b91510aed'   //  ID of the credential Jenkins should use to connect to the above Git repo
 
 // SONAR Variables
-SONAR_APP_ORG = 'dgs1sdt'
-SONAR_APP_VERSION = '0.0.1'
-SONAR_CREDS = 'sonar-prod-publish-token'
+SONAR_APP_ORG = 'dgs1sdt'                 // Org name in SonarQube
+SONAR_APP_VERSION = '0.0.1'               // App version to use in SonarQube
+SONAR_CREDS = 'sonar-prod-publish-token'  // Credential for SonarQube
 SONAR_TOOL = 'SonarQube Runner 3.0'
-SONAR_XMX = '512m'
-SONAR_HOST = 'https://sonar.gs.mil'
+SONAR_XMX = '512m'                        // Memory allocation
+SONAR_HOST = 'https://sonar.gs.mil'       // Address of the Sonar instance
 
 // THREADFIX Variables
-THREADFIX_APP_ID = '600'
-THREADFIX_CREDS = 'THREADFIXAPIKEY_squire'
+THREADFIX_APP_ID = '600'                      // Threadfix App ID (Provided by NGA when you request a threadfix project in RocketChat -> #threadfix_askanexpert)
+THREADFIX_CREDS = 'THREADFIXAPIKEY_squire'    // API Key (Provided by NGA when you request a threadfix project in RocketChat -> #threadfix_askanexpert)
 
 // Deploy variables
-DEPLOY_ORG = 'DGS1SDT'
-DEPLOY_API_DEV = 'api.system.dev.east.paas.nga.mil'
-DEPLOY_API_OPS = 'api.system.east.paas.nga.mil'
-DEPLOY_CREDS_DEV = 'dgs1sdt_cloud_foundry_dev_credential'
-DEPLOY_CREDS_OPS = 'dgs1sdt_cloud_foundry_ops_credential'
+DEPLOY_ORG = 'DGS1SDT'                                      //  PCF Org name
+DEPLOY_API_DEV = 'api.system.dev.east.paas.nga.mil'         //  PCF-Dev API address
+DEPLOY_API_OPS = 'api.system.east.paas.nga.mil'             //  PCF-Ops API address
+DEPLOY_CREDS_DEV = 'dgs1sdt_cloud_foundry_dev_credential'   //  PCF-Dev credential ID
+DEPLOY_CREDS_OPS = 'dgs1sdt_cloud_foundry_ops_credential'   //  PCF-Ops credential ID
+
+
+// -----------------------------------------------------
+//        Sonar tool setup
+// -----------------------------------------------------
 
 def writeSonarProps(SONAR_APP_VERSION) {
   writeFile file: 'sonar-project.properties', text:"""
@@ -52,6 +61,11 @@ def writeSonarProps(SONAR_APP_VERSION) {
     sonar.links.scm_dev=https://gitlab.gs.mil/DGS1SDT/${APP_NAME}
   """
 }
+
+
+// -----------------------------------------------------
+// Node tool setup, if needed, wrap stage in withNode {}
+// -----------------------------------------------------
 
 def withNode(Closure body) {
   def customConfig = "${WORKSPACE}/npm_userconfig"
@@ -83,20 +97,34 @@ def withNode(Closure body) {
   }
 }
 
+// -----------------------------------------------------
+//        Begin stages
+// -----------------------------------------------------
 
 node ('Standard') {
-  env.NODEJS_HOME = "${tool 'NodeJS_LTS'}"
-  env.PATH="${env.NODEJS_HOME}/bin:${env.PATH}"
+  env.NODEJS_HOME = "${tool 'NodeJS_LTS'}"          //  Which version of Node tool to use, opts 'NodeJS_LTS' (v14.12.0), 'NodeJS_10', 'NodeJS_12', and 'NodeJS_14'
+  env.PATH="${env.NODEJS_HOME}/bin:${env.PATH}"     //  Adds NODEJS_HOME/bin to path, so you can easily call global binaries
 
+
+  // -----------------------------------------------------
+  //        Checkout from GIT
+  // -----------------------------------------------------
   stage ('Git Checkout') {
     git url: "${GIT_URL}", branch: "${GIT_BRANCH}", credentialsId: "${GIT_CREDENTIALS_ID}", poll: true
   }
 
-  stage ('Test & Build') {
+  // -----------------------------------------------------
+  //        Run tests & build output files (if needed)
+  // -----------------------------------------------------
+  stage ('Test & Build') { 
+    // TODO: Break Tests and Build out into separate stages
     sh './scripts/tests.sh'
     sh 'mvn -q -Dmaven.test.skip=true -DskipTests clean package'
   }
 
+  // -----------------------------------------------------
+  //        Upload sources for SonarQube inspection
+  // -----------------------------------------------------
   stage('SonarQube') {
     writeSonarProps(SONAR_APP_VERSION)
     def SCANNER_HOME = tool("${SONAR_TOOL}")
@@ -110,12 +138,18 @@ node ('Standard') {
     }
   }
 
+  // -----------------------------------------------------
+  //        Run SonarQube output through Fortify
+  // -----------------------------------------------------
   stage  ('Fortify') {
     sh '/opt/hp_fortify_sca/bin/sourceanalyzer -64 -verbose -Xms2G -Xmx10G -b ${BUILD_NUMBER} -clean'
     sh '/opt/hp_fortify_sca/bin/sourceanalyzer -64 -verbose -Xms2G -Xmx10G -b ${BUILD_NUMBER} "**/*.kt"'
     sh '/opt/hp_fortify_sca/bin/sourceanalyzer -64 -verbose -Xms2G -Xmx10G -b ${BUILD_NUMBER} -scan -f fortifyResults-${BUILD_NUMBER}.fpr'
   }
 
+  // -----------------------------------------------------
+  //        Use Threadfix to examine Forifty results
+  // -----------------------------------------------------
   stage  ('Threadfix') {
     withCredentials([string(credentialsId: "${THREADFIX_CREDS}", variable: 'THREADFIX_VARIABLE')]) {
       sh "/bin/curl -v --insecure -H 'Accept: application/json' -X POST --form file=@fortifyResults-${BUILD_NUMBER}.fpr\
@@ -123,29 +157,41 @@ node ('Standard') {
     }
   }
 
+  // -----------------------------------------------------
+  //        Deploy to NGA PCF, based on branch
+  // -----------------------------------------------------
   stage ('Deploy NGA') {
-    if (env.BRANCH_NAME == 'main') {
+    if (env.BRANCH_NAME ==~ /master|main/) {
+      // -----------------------------------------------------
+      //        'main' or 'master' -> PCF_OPS   app_prod
+      // -----------------------------------------------------
       withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: "${DEPLOY_CREDS_OPS}", passwordVariable: 'PCFPass', usernameVariable: 'PCFUser']]) {
         withEnv(["CF_HOME=${pwd()}"]) {
           echo 'Deploying to NGA dev environment -> Squire_ops'
           sh "cf login -a ${DEPLOY_API_OPS} -u $PCFUser -p $PCFPass -o ${DEPLOY_ORG} -s squire_prod"
-          sh 'cf push -f ./scripts/ci/manifest.yml --hostname squire -d gs.mil'
+          sh 'cf push -f ./scripts/ci/manifest.prod.yml'
         }
       } 
-    } else if (env.BRANCH_NAME == 'develop') {
+    } else if (env.BRANCH_NAME ==~ /develop|dev/) {
+      // -----------------------------------------------------
+      //        'develop' or 'dev' -> PCF_DEV   app_dev
+      // -----------------------------------------------------
       withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: "${DEPLOY_CREDS_DEV}", passwordVariable: 'PCFPass', usernameVariable: 'PCFUser']]) {
         withEnv(["CF_HOME=${pwd()}"]) {
           echo 'Deploying to NGA dev environment -> squire_dev'
           sh "cf login -a ${DEPLOY_API_DEV} -u $PCFUser -p $PCFPass -o ${DEPLOY_ORG} -s squire_dev"
-          sh 'cf push -f ./scripts/ci/manifest.yml'
+          sh 'cf push -f ./scripts/ci/manifest.dev.yml'
         }
       } 
     } else {
+      // -----------------------------------------------------
+      //        All other branches -> PCF_DEV   app_test
+      // -----------------------------------------------------      
       withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: "${DEPLOY_CREDS_DEV}", passwordVariable: 'PCFPass', usernameVariable: 'PCFUser']]) {
         withEnv(["CF_HOME=${pwd()}"]) {
           echo 'Deploying to NGA dev environment -> squire_test'
           sh "cf login -a ${DEPLOY_API_DEV} -u $PCFUser -p $PCFPass -o ${DEPLOY_ORG} -s squire_test"
-          sh 'cf push -f ./scripts/ci/manifest.yml' 
+          sh 'cf push -f ./scripts/ci/manifest.test.yml' 
         }
       } 
     }
