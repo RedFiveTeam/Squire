@@ -14,32 +14,35 @@ properties(
 // -----------------------------------------------------
 
 // Global Variables
-APP_NAME = 'squire'             //  The App name
+APP_NAME = 'squire'                                           //  The App name
 
 // GIT Variables
 GIT_URL = 'https://gitlab.gs.mil/DGS1SDT/squire.git'          //  Address of Git repo to pull
 GIT_BRANCH = env.BRANCH_NAME                                  //  Branch name (env.BRANCH_NAME is available instead, this just uses that)
 GIT_CREDENTIALS_ID = 'c7f06540-c586-4b51-8d5a-cb1b91510aed'   //  ID of the credential Jenkins should use to connect to the above Git repo
 
-// SONAR Variables
-SONAR_APP_ORG = 'dgs1sdt'                 // Org name in SonarQube
-SONAR_APP_VERSION = '0.0.1'               // App version to use in SonarQube
-SONAR_CREDS = 'sonar-prod-publish-token'  // Credential for SonarQube
-SONAR_TOOL = 'SonarQube Runner 3.0'
-SONAR_XMX = '512m'                        // Memory allocation
-SONAR_HOST = 'https://sonar.gs.mil'       // Address of the Sonar instance
+// SonarQube Variables
+SONAR_APP_ORG = 'dgs1sdt'                                     // Org name in SonarQube
+SONAR_APP_VERSION = '0.0.1'                                   // App version to send to SonarQube
+SONAR_CREDS = 'sonar-prod-publish-token'                      // Credential to use for SonarQube
+SONAR_TOOL = 'SonarQube Runner 3.0'                           // SonarQube tool name
+SONAR_XMX = '512m'                                            // Memory allocation
+SONAR_HOST = 'https://sonar.gs.mil'                           // Address of the Sonar instance
 
-// THREADFIX Variables
-THREADFIX_APP_ID = '600'                      // Threadfix App ID (Provided by NGA when you request a threadfix project in RocketChat -> #threadfix_askanexpert)
-THREADFIX_CREDS = 'THREADFIXAPIKEY_squire'    // API Key (Provided by NGA when you request a threadfix project in RocketChat -> #threadfix_askanexpert)
+// Threadfix Variables
+THREADFIX_APP_ID = '600'                                      // Threadfix App ID (Provided by NGA when you request a threadfix project in RocketChat -> #threadfix_askanexpert)
+THREADFIX_CREDS = 'THREADFIXAPIKEY_squire'                    // API Key (Provided by NGA when you request a threadfix project in RocketChat -> #threadfix_askanexpert)
 
-// Deploy variables
-DEPLOY_ORG = 'DGS1SDT'                                      //  PCF Org name
-DEPLOY_API_DEV = 'api.system.dev.east.paas.nga.mil'         //  PCF-Dev API address
-DEPLOY_API_OPS = 'api.system.east.paas.nga.mil'             //  PCF-Ops API address
-DEPLOY_CREDS_DEV = 'dgs1sdt_cloud_foundry_dev_credential'   //  PCF-Dev credential ID
-DEPLOY_CREDS_OPS = 'dgs1sdt_cloud_foundry_ops_credential'   //  PCF-Ops credential ID
+// PCF Deploy variables
+DEPLOY_ORG = 'DGS1SDT'                                        //  PCF Org name
+DEPLOY_API_DEV = 'api.system.dev.east.paas.nga.mil'           //  PCF-Dev API address
+DEPLOY_API_OPS = 'api.system.east.paas.nga.mil'               //  PCF-Ops API address
+DEPLOY_CREDS_DEV = 'dgs1sdt_cloud_foundry_dev_credential'     //  PCF-Dev credential ID
+DEPLOY_CREDS_OPS = 'dgs1sdt_cloud_foundry_ops_credential'     //  PCF-Ops credential ID
 
+// -----------------------------------------------------
+//        End project variables
+// -----------------------------------------------------
 
 // -----------------------------------------------------
 //        Sonar tool setup
@@ -117,9 +120,9 @@ node ('Standard') {
   //        Run tests & build output files (if needed)
   // -----------------------------------------------------
   stage ('Test & Build') { 
-    // TODO: Break Tests and Build out into separate stages
-    sh './scripts/tests.sh'
-    sh 'mvn -q -Dmaven.test.skip=true -DskipTests clean package'
+    // TODO: Break Test and Build out into separate stages
+    sh './scripts/test.sh'
+    sh './scripts/build.sh'
   }
 
   // -----------------------------------------------------
@@ -148,7 +151,7 @@ node ('Standard') {
   }
 
   // -----------------------------------------------------
-  //        Use Threadfix to examine Forifty results
+  //        Examine Forifty results w/ Threadfix
   // -----------------------------------------------------
   stage  ('Threadfix') {
     withCredentials([string(credentialsId: "${THREADFIX_CREDS}", variable: 'THREADFIX_VARIABLE')]) {
@@ -158,7 +161,7 @@ node ('Standard') {
   }
 
   // -----------------------------------------------------
-  //        Deploy to NGA PCF, based on branch
+  //        Deploy JAR to NGA PCF, based on branch
   // -----------------------------------------------------
   stage ('Deploy NGA') {
     if (env.BRANCH_NAME ==~ /master|main/) {
@@ -167,8 +170,8 @@ node ('Standard') {
       // -----------------------------------------------------
       withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: "${DEPLOY_CREDS_OPS}", passwordVariable: 'PCFPass', usernameVariable: 'PCFUser']]) {
         withEnv(["CF_HOME=${pwd()}"]) {
-          echo 'Deploying to NGA dev environment -> Squire_ops'
-          sh "cf login -a ${DEPLOY_API_OPS} -u $PCFUser -p $PCFPass -o ${DEPLOY_ORG} -s squire_prod"
+          echo "Deploying to NGA dev environment -> ${APP_NAME}_prod"
+          sh "cf login -a ${DEPLOY_API_OPS} -u $PCFUser -p $PCFPass -o ${DEPLOY_ORG} -s ${APP_NAME}_prod"
           sh 'cf push -f ./scripts/ci/manifest.prod.yml'
         }
       } 
@@ -178,8 +181,8 @@ node ('Standard') {
       // -----------------------------------------------------
       withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: "${DEPLOY_CREDS_DEV}", passwordVariable: 'PCFPass', usernameVariable: 'PCFUser']]) {
         withEnv(["CF_HOME=${pwd()}"]) {
-          echo 'Deploying to NGA dev environment -> squire_dev'
-          sh "cf login -a ${DEPLOY_API_DEV} -u $PCFUser -p $PCFPass -o ${DEPLOY_ORG} -s squire_dev"
+          echo "Deploying to NGA dev environment -> ${APP_NAME}_dev"
+          sh "cf login -a ${DEPLOY_API_DEV} -u $PCFUser -p $PCFPass -o ${DEPLOY_ORG} -s ${APP_NAME}_dev"
           sh 'cf push -f ./scripts/ci/manifest.dev.yml'
         }
       } 
@@ -189,8 +192,8 @@ node ('Standard') {
       // -----------------------------------------------------      
       withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: "${DEPLOY_CREDS_DEV}", passwordVariable: 'PCFPass', usernameVariable: 'PCFUser']]) {
         withEnv(["CF_HOME=${pwd()}"]) {
-          echo 'Deploying to NGA dev environment -> squire_test'
-          sh "cf login -a ${DEPLOY_API_DEV} -u $PCFUser -p $PCFPass -o ${DEPLOY_ORG} -s squire_test"
+          echo "Deploying to NGA dev environment -> ${APP_NAME}_test"
+          sh "cf login -a ${DEPLOY_API_DEV} -u $PCFUser -p $PCFPass -o ${DEPLOY_ORG} -s ${APP_NAME}_test"
           sh 'cf push -f ./scripts/ci/manifest.test.yml' 
         }
       } 
