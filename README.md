@@ -86,7 +86,7 @@ You can setup all required environment variables by running
 ## Deploy
 The app will push at the end of its pipeline cycle (in Jenkins via NGA).  Jenkins will run every push to gitlab.gs.mil through the pipeline, and the develop and main branches will push to their respective spaces in PCF.
 
-* `main` gets pushed to https://squire.gs.mil
+* `main` gets pushed to https://squire.east.paas.nga.mil/ (https://squire.gs.mil at later date)
 * `develop` gets pushed to https://squire.dev.gs.mil
 * `*` (All Others) gets pushed to https://squire-test.dev.gs.mil
 
@@ -94,6 +94,6 @@ The app will push at the end of its pipeline cycle (in Jenkins via NGA).  Jenkin
 - [Squire on PivotalTracker](https://www.pivotaltracker.com/n/projects/2476396)
 - [Squire CI/CD (Jenkins)](https://jenkins.gs.mil/job/dgs1sdt/job/squire/)
 
-- [Squire (production)](https://squire.gs.mil)
+- [Squire (production)](https://squire.east.paas.nga.mil/)
 - [Squire (acceptance)](https://squire.dev.gs.mil)
 - [Squire (testing)](https://squire.test.gs.mil)
