@@ -71,9 +71,9 @@ def writeSonarProps(SONAR_APP_VERSION) {
 // -----------------------------------------------------
 
 def withNode(Closure body) {
-  def customConfig = "${WORKSPACE}/npm_userconfig"
+  def customConfig = "${env.WORKSPACE}/npm_userconfig"
   def nodeHome = "${tool 'NodeJS_LTS'}"
-  withEnv(["PATH+NODE=${nodeHome}/bin", "NPM_CONFIG_CACHE=${WORKSPACE}/npm_cache"]) {
+  withEnv(["PATH+NODE=${nodeHome}/bin", "NPM_CONFIG_CACHE=${env.WORKSPACE}/npm_cache"]) {
     def defaultConfig = sh (
     script: 'npm config get userconfig | tail -1',
     returnStdout: true).trim()
@@ -81,7 +81,7 @@ def withNode(Closure body) {
   }
 
   // custom cache
-  def customCache = "${WORKSPACE}/npm_cache"
+  def customCache = "${env.WORKSPACE}/npm_cache"
   sh "mkdir -p '${customCache}'"
 
   withEnv(["PATH+NODE=${nodeHome}/bin", "NPM_CONFIG_CACHE=${customCache}", "NPM_CONFIG_USERCONFIG=${customConfig}"]) {
@@ -95,6 +95,14 @@ def withNode(Closure body) {
       sh 'git config --global url."https://github.com/".insteadOf git://github.com/'
       sh 'git config --global --add url."https://github.com/".insteadOf git@github.com:'
       sh 'git config --global --add url."https://github.com/".insteadOf ssh://git@github.com/'
+
+      // install yarn
+      sh "npm install -g yarn"
+      sh 'yarn config set strict-ssl true'
+      sh "mkdir -p ${env.WORKSPACE}/yarn_cache"
+      sh "yarn config set cache-folder ${env.WORKSPACE}/yarn_cache"
+
+      // run the wrapped stages
       body()
     }
   }
@@ -110,19 +118,23 @@ node ('Standard') {
 
 
   // -----------------------------------------------------
-  //        Checkout from GIT
+  //        Clean workspace & checkout from gitlab
   // -----------------------------------------------------
-  stage ('Git Checkout') {
+  stage ('Clean & Checkout') {
+    cleanWs()
+
     git url: "${GIT_URL}", branch: "${GIT_BRANCH}", credentialsId: "${GIT_CREDENTIALS_ID}", poll: true
   }
 
   // -----------------------------------------------------
   //        Run tests & build output files (if needed)
   // -----------------------------------------------------
-  stage ('Test & Build') { 
-    // TODO: Break Test and Build out into separate stages
-    sh './scripts/test.sh'
-    sh './scripts/build.sh'
+  withNode{
+    stage ('Test & Build') { 
+      // TODO: Break Test and Build out into separate stages
+      sh './scripts/test.sh'
+      sh './scripts/build.sh'
+    }
   }
 
   // -----------------------------------------------------
