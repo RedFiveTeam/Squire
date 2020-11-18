@@ -54,8 +54,8 @@ def writeSonarProps(SONAR_APP_VERSION) {
     sonar.projectName=${APP_NAME}
     sonar.projectVersion=${SONAR_APP_VERSION}
     sonar.sources=.
-    sonar.exclusions=public/**/*,docs/swagger.json,node_modules/**/*,coverage/**/*,test/**/*,environment/cloudfoundry/test/**/*,environment/local/test/**/*,functionalTests/**/*\\
-    sonar.test.exclusions=test/**/*,environment/cloudfoundry/test/**/*,environment/local/test/**/*,functionalTests/**/*\\
+    sonar.exclusions=public/**/*,docs/swagger.json,node_modules/**/*,coverage/**/*,test/**/*,environment/cloudfoundry/test/**/*,environment/local/test/**/*,functionalTests/**/*,${env.WORKSPACE}/npm_cache/**/*,${env.WORKSPACE}/yarn_cache/**/*
+    sonar.test.exclusions=test/**/*,environment/cloudfoundry/test/**/*,environment/local/test/**/*,functionalTests/**/*
     sonar.sourceEncoding=UTF-8
     sonar.javascript.lcov.reportPath=coverage/lcov/dashboard.lcov
     sonar.links.ci=${JOB_URL}
@@ -111,8 +111,7 @@ def withNode(Closure body) {
 // -----------------------------------------------------
 //        Begin stages
 // -----------------------------------------------------
-
-node ('Standard') {
+node ('Standard') {                                 //  Pick a standard node to execute on
   env.NODEJS_HOME = "${tool 'NodeJS_LTS'}"          //  Which version of Node tool to use, opts 'NodeJS_LTS' (v14.12.0), 'NodeJS_10', 'NodeJS_12', and 'NodeJS_14'
   env.PATH="${env.NODEJS_HOME}/bin:${env.PATH}"     //  Adds NODEJS_HOME/bin to path, so you can easily call global binaries
 
