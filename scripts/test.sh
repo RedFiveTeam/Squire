@@ -97,7 +97,7 @@ function showSpinner {
 function showBanner {
   echo ""
   green "================================================================"
-  echo "  ${bright}${1}${default}"
+  echo -e "  ${bright}${1}${default}"
   green "================================================================"
   echo ""
 }
