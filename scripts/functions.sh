@@ -60,8 +60,10 @@ function chkCmd {
   if [ -x "$(command -v ${cmd})" ]; then
     echo -e "    ${bright}${cmd}${default}:  $(which ${cmd})"
   else
-    red "    ${cmd} not found, exiting"
-    exit 1
+    red "    ${cmd} not found, attempting install..."
+    if [ ! $(installCmd ${cmd}) ]; then 
+      exit 1
+    fi
   fi
   echo ""
 }
@@ -74,6 +76,20 @@ function cleanup {
     bright "Removing pidfile: ${dim}${BASE_DIR}/tmp/squire.pid"
     rm ${BASE_DIR}/tmp/squire.pid
   fi
+}
+
+# attempt to install a cmd that wasn't found, each case is manual
+function installCmd {
+  case "${1}" in
+    yarn*)
+      npm install -g yarn
+      exit 0
+    ;;
+    *)
+      dim "      Don't know how to install ${1}, exiting"
+      exit 1
+    ;;
+  esac
 }
 
 # This runs between each step in this file, to show the steps that are happening

@@ -95,7 +95,6 @@ def withNode(Closure body) {
       sh 'git config --global url."https://github.com/".insteadOf git://github.com/'
       sh 'git config --global --add url."https://github.com/".insteadOf git@github.com:'
       sh 'git config --global --add url."https://github.com/".insteadOf ssh://git@github.com/'
-      sh 'ls -al'
       // run the wrapped stages
       body()
     }
