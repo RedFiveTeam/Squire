@@ -44,6 +44,8 @@ function cyan {
 }
 # end color functions
 
+
+# setup BASE_DIR and store it
 function cfgBaseDir {
   echo -e "  Configuring ${bright}BASE_DIR${default}..."
   BASE_DIR="$(dirname $( cd "$(dirname "$0")" ; pwd -P ))"
@@ -51,6 +53,7 @@ function cfgBaseDir {
   echo ""
 }
 
+# check if a command is available
 function chkCmd {
   local cmd="${1}"
     echo -e "  Checking for ${bright}${cmd}${default}..."
@@ -63,10 +66,13 @@ function chkCmd {
   echo ""
 }
 
+# clean up after ourselves, close processes, etc
 function cleanup {
   if [ -f ${BASE_DIR}/tmp/squire.pid ]; then
-      cat ${BASE_DIR}/tmp/squire.pid | xargs kill -9
-      rm ${BASE_DIR}/tmp/squire.pid
+    bright "Killing running instance of Squire"
+    cat ${BASE_DIR}/tmp/squire.pid | xargs kill -9
+    bright "Removing pidfile: ${dim}${BASE_DIR}/tmp/squire.pid"
+    rm ${BASE_DIR}/tmp/squire.pid
   fi
 }
 
@@ -86,6 +92,7 @@ function showBanner {
   echo ""
 }
 
+# Run a command and output what is happening nicely, show a spinner locally
 function runCommand {
   local cmd="${1}"
   local out="${2}"
@@ -124,10 +131,12 @@ function showSpinner {
   done
 }
 
+# Use yarn to build frontend production files
 function yarnBuild {
   runCommand "yarn build" "Building output files with Yarn"
 }
 
+# Use yarn to install dependencies
 function yarnInstall {
   runCommand "yarn" "Installing dependencies"
 }

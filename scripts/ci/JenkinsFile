@@ -54,9 +54,9 @@ def writeSonarProps(SONAR_APP_VERSION) {
     sonar.projectKey=${SONAR_APP_ORG}:${APP_NAME}
     sonar.projectName=${APP_NAME}
     sonar.projectVersion=${SONAR_APP_VERSION}
-    sonar.sources=.
+    sonar.sources=./src/main/**/*,./frontend/src/**/*
     sonar.exclusions=public/**/*,docs/swagger.json,node_modules/**/*,coverage/**/*,test/**/*,environment/cloudfoundry/test/**/*,\\
-    environment/local/test/**/*,functionalTests/**/*,${env.WORKSPACE}/npm_cache/**/*,${env.WORKSPACE}/yarn_cache/**/*
+    environment/local/test/**/*,functionalTests/**/*
     sonar.test.exclusions=test/**/*,environment/cloudfoundry/test/**/*,environment/local/test/**/*,functionalTests/**/*
     sonar.sourceEncoding=UTF-8
     sonar.javascript.lcov.reportPath=coverage/lcov/dashboard.lcov
@@ -66,7 +66,6 @@ def writeSonarProps(SONAR_APP_VERSION) {
     sonar.links.scm_dev=https://gitlab.gs.mil/DGS1SDT/${APP_NAME}
   """
 }
-
 
 // -----------------------------------------------------
 // Node tool setup for nodejs, wrap stage in withNode {}
@@ -96,7 +95,7 @@ def withNode(Closure body) {
       sh 'git config --global url."https://github.com/".insteadOf git://github.com/'
       sh 'git config --global --add url."https://github.com/".insteadOf git@github.com:'
       sh 'git config --global --add url."https://github.com/".insteadOf ssh://git@github.com/'
-      
+      sh 'ls -al'
       // run the wrapped stages
       body()
     }
