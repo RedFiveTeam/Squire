@@ -49,7 +49,6 @@ DEPLOY_CREDS_OPS = 'dgs1sdt_cloud_foundry_ops_credential'     //  PCF-Ops creden
 // -----------------------------------------------------
 //        Sonar tool setup
 // -----------------------------------------------------
-
 def writeSonarProps(SONAR_APP_VERSION) {
   writeFile file: 'sonar-project.properties', text:"""
     sonar.projectKey=${SONAR_APP_ORG}:${APP_NAME}
@@ -70,9 +69,8 @@ def writeSonarProps(SONAR_APP_VERSION) {
 
 
 // -----------------------------------------------------
-// Node tool setup, if needed, wrap stage in withNode {}
+// Node tool setup for nodejs, wrap stage in withNode {}
 // -----------------------------------------------------
-
 def withNode(Closure body) {
   def customConfig = "${env.WORKSPACE}/npm_userconfig"
   def nodeHome = "${tool 'NodeJS_LTS'}"
@@ -109,9 +107,6 @@ def withNode(Closure body) {
 //        Begin stage definitions
 // -----------------------------------------------------
 node ('Standard') {                                 //  Pick a 'Standard' node to execute on
-  //env.NODEJS_HOME = "${tool 'NodeJS_LTS'}"          //  Which version of Node tool to use, opts 'NodeJS_LTS' (v14.12.0), 'NodeJS_10', 'NodeJS_12', and 'NodeJS_14'
-  //env.PATH="${env.NODEJS_HOME}/bin:${env.PATH}"     //  Adds NODEJS_HOME/bin to path, so you can easily call global binaries
-
 
   // -----------------------------------------------------
   //        Clean workspace & checkout from gitlab
@@ -150,7 +145,7 @@ node ('Standard') {                                 //  Pick a 'Standard' node t
   }
 
   // -----------------------------------------------------
-  //        Run SonarQube output through Fortify
+  //        Run Fortify
   // -----------------------------------------------------
   stage  ('Fortify') {
     sh '/opt/hp_fortify_sca/bin/sourceanalyzer -64 -verbose -Xms2G -Xmx10G -b ${BUILD_NUMBER} -clean'
@@ -159,7 +154,7 @@ node ('Standard') {                                 //  Pick a 'Standard' node t
   }
 
   // -----------------------------------------------------
-  //        Examine Forifty results w/ Threadfix
+  //        Run Threadfix
   // -----------------------------------------------------
   stage  ('Threadfix') {
     withCredentials([string(credentialsId: "${THREADFIX_CREDS}", variable: 'THREADFIX_VARIABLE')]) {

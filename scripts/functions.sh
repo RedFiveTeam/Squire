@@ -51,12 +51,13 @@ function cfgBaseDir {
   echo ""
 }
 
-function chkYarn {
-  echo -e "  Checking for ${bright}yarn${default}..."
-  if [ -x "$(command -v yarn)" ]; then
-    echo -e "    ${bright}yarn${default}:  $(which yarn)"
+function chkCmd {
+  local cmd="${1}"
+    echo -e "  Checking for ${bright}${cmd}${default}..."
+  if [ -x "$(command -v ${cmd})" ]; then
+    echo -e "    ${bright}${cmd}${default}:  $(which ${cmd})"
   else
-    red "    Yarn not found, exiting"
+    red "    ${cmd} not found, exiting"
     exit 1
   fi
   echo ""
@@ -128,17 +129,7 @@ function yarnBuild {
 }
 
 function yarnInstall {
-    bright "  Installing dependencies"
-    dim "    'yarn install'"
-    if [ ! $CI ]; then
-      yarn > /dev/null &
-      showSpinner "$!"
-    else
-      yarn > /dev/null
-    fi
-
-    bright "      Done!"
-    echo ""
+  runCommand "yarn" "Installing dependencies"
 }
 
 # silence pushd/popd default output

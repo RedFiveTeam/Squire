@@ -55,7 +55,7 @@ function setup {
 
   showBanner "Setup"
   cfgBaseDir
-  chkYarn
+  chkCmd "yarn"
   
   pushd ${BASE_DIR}/frontend
     yarnInstall

@@ -24,7 +24,7 @@ function setup {
 
   showBanner "Setup"
   cfgBaseDir
-  chkYarn
+  chkCmd "yarn"
 }
 
 # Build frontend output files
