@@ -35,6 +35,8 @@ THREADFIX_CREDS = 'THREADFIXAPIKEY_squire'                    // API Key (Provid
 
 // PCF Deploy variables
 DEPLOY_ORG = 'DGS1SDT'                                        //  PCF Org name
+DEPLOY_OPS_BRANCHES = ['master', 'main']                      //  Git branches to deploy to PCF_OPS
+DEPLOY_DEV_BRANCHES = ['develop', 'dev']                      //  Git branches to deploy to PCF_DEV
 DEPLOY_API_DEV = 'api.system.dev.east.paas.nga.mil'           //  PCF-Dev API address
 DEPLOY_API_OPS = 'api.system.east.paas.nga.mil'               //  PCF-Ops API address
 DEPLOY_CREDS_DEV = 'dgs1sdt_cloud_foundry_dev_credential'     //  PCF-Dev credential ID
@@ -54,7 +56,8 @@ def writeSonarProps(SONAR_APP_VERSION) {
     sonar.projectName=${APP_NAME}
     sonar.projectVersion=${SONAR_APP_VERSION}
     sonar.sources=.
-    sonar.exclusions=public/**/*,docs/swagger.json,node_modules/**/*,coverage/**/*,test/**/*,environment/cloudfoundry/test/**/*,environment/local/test/**/*,functionalTests/**/*,${env.WORKSPACE}/npm_cache/**/*,${env.WORKSPACE}/yarn_cache/**/*
+    sonar.exclusions=public/**/*,docs/swagger.json,node_modules/**/*,coverage/**/*,test/**/*,environment/cloudfoundry/test/**/*,\\
+    environment/local/test/**/*,functionalTests/**/*,${env.WORKSPACE}/npm_cache/**/*,${env.WORKSPACE}/yarn_cache/**/*
     sonar.test.exclusions=test/**/*,environment/cloudfoundry/test/**/*,environment/local/test/**/*,functionalTests/**/*
     sonar.sourceEncoding=UTF-8
     sonar.javascript.lcov.reportPath=coverage/lcov/dashboard.lcov
@@ -84,7 +87,7 @@ def withNode(Closure body) {
   def customCache = "${env.WORKSPACE}/npm_cache"
   sh "mkdir -p '${customCache}'"
 
-  withEnv(["PATH+NODE=${nodeHome}/bin", "NPM_CONFIG_CACHE=${customCache}", "NPM_CONFIG_USERCONFIG=${customConfig}"]) {
+  withEnv(["PATH+=${nodeHome}/bin", "NPM_CONFIG_CACHE=${customCache}", "NPM_CONFIG_USERCONFIG=${customConfig}"]) {
     wrap([$class: 'AnsiColorBuildWrapper', 'colorMapName': 'XTerm']) {
       // fix a couple configuration items that aren’t set correctly in the default configuration
       sh 'npm config set strict-ssl true'
@@ -95,13 +98,7 @@ def withNode(Closure body) {
       sh 'git config --global url."https://github.com/".insteadOf git://github.com/'
       sh 'git config --global --add url."https://github.com/".insteadOf git@github.com:'
       sh 'git config --global --add url."https://github.com/".insteadOf ssh://git@github.com/'
-
-      // install yarn
-      sh "npm install -g yarn"
-      sh 'yarn config set strict-ssl true'
-      sh "mkdir -p ${env.WORKSPACE}/yarn_cache"
-      sh "yarn config set cache-folder ${env.WORKSPACE}/yarn_cache"
-
+      
       // run the wrapped stages
       body()
     }
@@ -109,11 +106,11 @@ def withNode(Closure body) {
 }
 
 // -----------------------------------------------------
-//        Begin stages
+//        Begin stage definitions
 // -----------------------------------------------------
-node ('Standard') {                                 //  Pick a standard node to execute on
-  env.NODEJS_HOME = "${tool 'NodeJS_LTS'}"          //  Which version of Node tool to use, opts 'NodeJS_LTS' (v14.12.0), 'NodeJS_10', 'NodeJS_12', and 'NodeJS_14'
-  env.PATH="${env.NODEJS_HOME}/bin:${env.PATH}"     //  Adds NODEJS_HOME/bin to path, so you can easily call global binaries
+node ('Standard') {                                 //  Pick a 'Standard' node to execute on
+  //env.NODEJS_HOME = "${tool 'NodeJS_LTS'}"          //  Which version of Node tool to use, opts 'NodeJS_LTS' (v14.12.0), 'NodeJS_10', 'NodeJS_12', and 'NodeJS_14'
+  //env.PATH="${env.NODEJS_HOME}/bin:${env.PATH}"     //  Adds NODEJS_HOME/bin to path, so you can easily call global binaries
 
 
   // -----------------------------------------------------
@@ -131,8 +128,8 @@ node ('Standard') {                                 //  Pick a standard node to 
   withNode{
     stage ('Test & Build') { 
       // TODO: Break Test and Build out into separate stages
-      sh './scripts/test.sh'
-      sh './scripts/build.sh'
+      sh 'CI=true ./scripts/test.sh'
+      sh 'CI=true ./scripts/build.sh'
     }
   }
 
@@ -175,9 +172,9 @@ node ('Standard') {                                 //  Pick a standard node to 
   //        Deploy JAR to NGA PCF, based on branch
   // -----------------------------------------------------
   stage ('Deploy NGA') {
-    if (env.BRANCH_NAME ==~ /master|main/) {
+    if (DEPLOY_OPS_BRANCHES.contains(env.BRANCH_NAME)) {
       // -----------------------------------------------------
-      //        'main' or 'master' -> PCF_OPS   app_prod
+      //        'main' or 'master' -> PCF_OPS - APP_NAME_prod
       // -----------------------------------------------------
       withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: "${DEPLOY_CREDS_OPS}", passwordVariable: 'PCFPass', usernameVariable: 'PCFUser']]) {
         withEnv(["CF_HOME=${pwd()}"]) {
@@ -186,9 +183,9 @@ node ('Standard') {                                 //  Pick a standard node to 
           sh 'cf push -f ./scripts/ci/manifest.prod.yml'
         }
       } 
-    } else if (env.BRANCH_NAME ==~ /develop|dev/) {
+    } else if (DEPLOY_DEV_BRANCHES.contains(env.BRANCH_NAME)) {
       // -----------------------------------------------------
-      //        'develop' or 'dev' -> PCF_DEV   app_dev
+      //        'develop' or 'dev' -> PCF_DEV - APP_NAME_dev
       // -----------------------------------------------------
       withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: "${DEPLOY_CREDS_DEV}", passwordVariable: 'PCFPass', usernameVariable: 'PCFUser']]) {
         withEnv(["CF_HOME=${pwd()}"]) {
@@ -199,7 +196,7 @@ node ('Standard') {                                 //  Pick a standard node to 
       } 
     } else {
       // -----------------------------------------------------
-      //        All other branches -> PCF_DEV   app_test
+      //        All other branches -> PCF_DEV - APP_NAME_test
       // -----------------------------------------------------      
       withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: "${DEPLOY_CREDS_DEV}", passwordVariable: 'PCFPass', usernameVariable: 'PCFUser']]) {
         withEnv(["CF_HOME=${pwd()}"]) {
